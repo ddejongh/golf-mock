@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"time"
 )
 
@@ -26,6 +28,9 @@ const (
 	MetricWaitTimeS        = "wait_time_s"
 	MetricThroughputPerMin = "throughput_per_min"
 )
+
+// Severities are the valid IncidentReported severities, lowest first.
+var Severities = []string{"low", "medium", "high", "critical"}
 
 // Envelope is the unit of ingest. (SourceID, EventID) is unique and is the
 // idempotency key used by the ingest consumer.
@@ -101,4 +106,48 @@ func (e Envelope) Validate() error {
 // StreamKey is the Redis Stream that carries a venue's ingest events.
 func StreamKey(venueID string) string {
 	return "events:" + venueID
+}
+
+// MetricSample decodes and validates a TypeMetricSample payload.
+func (e Envelope) MetricSample() (MetricSample, error) {
+	var s MetricSample
+	if err := e.decodePayload(TypeMetricSample, &s); err != nil {
+		return MetricSample{}, err
+	}
+	switch {
+	case s.ZoneID == "":
+		return MetricSample{}, fmt.Errorf("%w: payload.zone_id is required", ErrInvalidEnvelope)
+	case s.Metric == "":
+		return MetricSample{}, fmt.Errorf("%w: payload.metric is required", ErrInvalidEnvelope)
+	case math.IsNaN(s.Value) || math.IsInf(s.Value, 0):
+		return MetricSample{}, fmt.Errorf("%w: payload.value must be finite", ErrInvalidEnvelope)
+	}
+	return s, nil
+}
+
+// IncidentReported decodes and validates a TypeIncidentReported payload.
+func (e Envelope) IncidentReported() (IncidentReported, error) {
+	var r IncidentReported
+	if err := e.decodePayload(TypeIncidentReported, &r); err != nil {
+		return IncidentReported{}, err
+	}
+	switch {
+	case r.ZoneID == "":
+		return IncidentReported{}, fmt.Errorf("%w: payload.zone_id is required", ErrInvalidEnvelope)
+	case !slices.Contains(Severities, r.Severity):
+		return IncidentReported{}, fmt.Errorf("%w: payload.severity %q is not one of %v", ErrInvalidEnvelope, r.Severity, Severities)
+	case r.Category == "":
+		return IncidentReported{}, fmt.Errorf("%w: payload.category is required", ErrInvalidEnvelope)
+	}
+	return r, nil
+}
+
+func (e Envelope) decodePayload(want Type, dst any) error {
+	if e.Type != want {
+		return fmt.Errorf("%w: type is %q, not %q", ErrInvalidEnvelope, e.Type, want)
+	}
+	if err := json.Unmarshal(e.Payload, dst); err != nil {
+		return fmt.Errorf("%w: payload: %w", ErrInvalidEnvelope, err)
+	}
+	return nil
 }

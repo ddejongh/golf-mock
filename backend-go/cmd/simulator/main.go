@@ -44,7 +44,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	redis.SetLogger(redisLogger{log})
+	redis.SetLogger(logging.RedisLogger{Log: log})
 
 	if err := run(ctx, cfg, log, os.Stdout); err != nil && !errors.Is(err, context.Canceled) {
 		log.Error("simulator failed", slog.Any("error", err))
@@ -148,11 +148,4 @@ func randomSeed() (uint64, error) {
 		return 0, fmt.Errorf("generate seed: %w", err)
 	}
 	return binary.LittleEndian.Uint64(b[:]) | 1, nil
-}
-
-// redisLogger routes go-redis's internal printf logging into slog.
-type redisLogger struct{ log *slog.Logger }
-
-func (l redisLogger) Printf(ctx context.Context, format string, v ...any) {
-	l.log.WarnContext(ctx, "redis client", slog.String("detail", fmt.Sprintf(format, v...)))
 }

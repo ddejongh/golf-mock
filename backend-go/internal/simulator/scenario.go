@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/ddejongh/venuepulse/backend-go/internal/events"
 )
 
 // Scenario describes a venue and how load evolves over a simulated run.
@@ -82,8 +84,6 @@ func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (d Duration) D() time.Duration { return time.Duration(d) }
-
-var validSeverities = []string{"low", "medium", "high", "critical"}
 
 // LoadScenario reads and validates a scenario file.
 func LoadScenario(path string) (*Scenario, error) {
@@ -182,8 +182,8 @@ func (s *Scenario) Validate() error {
 		if inc.At < 0 || inc.At > s.Duration {
 			add("%s: at must be within [0, duration]", where)
 		}
-		if !slices.Contains(validSeverities, inc.Severity) {
-			add("%s: severity must be one of %v", where, validSeverities)
+		if !slices.Contains(events.Severities, inc.Severity) {
+			add("%s: severity must be one of %v", where, events.Severities)
 		}
 		if inc.Category == "" {
 			add("%s: category is required", where)
