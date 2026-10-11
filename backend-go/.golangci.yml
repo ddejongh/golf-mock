@@ -1,0 +1,20 @@
+version: "2"
+linters:
+  enable:
+    - errorlint
+    - wrapcheck
+    - sloglint
+    - contextcheck
+    - bodyclose
+    - noctx
+    - misspell
+  settings:
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/ddejongh/venuepulse/*
+    sloglint:
+      attr-only: true
+formatters:
+  enable:
+    - gofmt
+    - goimports

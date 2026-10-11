@@ -395,6 +395,7 @@ Guardrails:
 .
 ├── api/                          # Contracts (source of truth)
 │   ├── openapi.yaml              # Public + internal REST
+│   ├── events/                   # Ingest envelope JSON Schema (sources → Redis Streams)
 │   └── ws/                       # WebSocket envelope + message JSON Schemas
 ├── backend-go/
 │   ├── cmd/

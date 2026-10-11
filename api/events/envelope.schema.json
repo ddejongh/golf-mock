@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://venuepulse.dev/schemas/events/envelope.json",
+  "title": "Ingest envelope",
+  "description": "Unit of ingest published by data sources (simulator, adapters) to Redis Stream events:{venue_id}, stored JSON-encoded in the 'envelope' field. (source_id, event_id) is the idempotency key. Go mirror: backend-go/internal/events.",
+  "type": "object",
+  "required": ["event_id", "source_id", "venue_id", "type", "ts", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "source_id": { "type": "string", "minLength": 1 },
+    "venue_id": { "type": "string", "minLength": 1 },
+    "type": { "enum": ["metric.sample", "incident.reported"] },
+    "ts": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "metric.sample" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/MetricSample" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "incident.reported" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/IncidentReported" } } }
+    }
+  ],
+  "$defs": {
+    "MetricSample": {
+      "type": "object",
+      "required": ["zone_id", "metric", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "zone_id": { "type": "string", "minLength": 1 },
+        "metric": {
+          "description": "Known metrics: occupancy, queue_length, wait_time_s, throughput_per_min. Consumers must tolerate unknown metric names.",
+          "type": "string",
+          "minLength": 1
+        },
+        "value": { "type": "number" }
+      }
+    },
+    "IncidentReported": {
+      "type": "object",
+      "required": ["zone_id", "severity", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "zone_id": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "category": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+# Local development stack. Run from the repo root: `make dev`.
+# Gateway, ingest, agent and frontend services are added as they are built (M1+).
+name: venuepulse
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: venuepulse
+      POSTGRES_PASSWORD: venuepulse
+      POSTGRES_DB: venuepulse
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U venuepulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  simulator:
+    build:
+      context: ../backend-go
+      dockerfile: ../deploy/docker/backend-go.Dockerfile
+      args: { CMD: simulator }
+    environment:
+      VP_REDIS_URL: redis://redis:6379/0
+      VP_SIM_SCENARIO: /app/scenarios/${VP_SIM_SCENARIO_NAME:-stadium-ingress}.yaml
+      VP_SIM_SPEED: ${VP_SIM_SPEED:-10}
+      VP_SIM_LOOP: "true"
+      VP_LOG_LEVEL: ${VP_LOG_LEVEL:-info}
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:

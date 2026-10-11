@@ -1,0 +1,91 @@
+# Pre-game ingress through kickoff at a 40k-seat stadium. Kickoff is at 90m.
+# A North Gate scanner outage at 55m builds a queue during peak arrivals.
+name: stadium-ingress
+venue:
+  id: ven_demo_stadium
+  name: Riverside Stadium
+  kind: stadium
+  timezone: America/New_York
+duration: 3h
+tick: 5s
+
+zones:
+  - id: zone_gate_north
+    name: North Gate
+    kind: entrance
+    service_rate_per_min: 220
+    arrivals:
+      peak_per_min: 260
+      curve:
+        - { at: 0m,   value: 0.05 }
+        - { at: 45m,  value: 0.70 }
+        - { at: 75m,  value: 1.00 }
+        - { at: 95m,  value: 0.20 }
+        - { at: 120m, value: 0.02 }
+
+  - id: zone_gate_south
+    name: South Gate
+    kind: entrance
+    service_rate_per_min: 180
+    arrivals:
+      peak_per_min: 200
+      curve:
+        - { at: 0m,   value: 0.05 }
+        - { at: 50m,  value: 0.75 }
+        - { at: 80m,  value: 1.00 }
+        - { at: 100m, value: 0.15 }
+        - { at: 120m, value: 0.02 }
+
+  - id: zone_concourse_main
+    name: Main Concourse
+    kind: concourse
+    capacity: 9000
+    occupancy:
+      - { at: 0m,   value: 0.02 }
+      - { at: 70m,  value: 0.65 }
+      - { at: 90m,  value: 0.30 }
+      - { at: 130m, value: 0.25 }
+      - { at: 140m, value: 0.80 } # halftime
+      - { at: 160m, value: 0.20 }
+      - { at: 180m, value: 0.10 }
+
+  - id: zone_bowl
+    name: Seating Bowl
+    kind: seating
+    capacity: 40000
+    occupancy:
+      - { at: 0m,   value: 0.00 }
+      - { at: 60m,  value: 0.35 }
+      - { at: 95m,  value: 0.92 }
+      - { at: 135m, value: 0.94 }
+      - { at: 145m, value: 0.75 } # halftime
+      - { at: 160m, value: 0.93 }
+
+  - id: zone_concession_112
+    name: Concessions 112
+    kind: concession
+    service_rate_per_min: 6
+    arrivals:
+      peak_per_min: 14
+      curve:
+        - { at: 0m,   value: 0.05 }
+        - { at: 60m,  value: 0.60 }
+        - { at: 90m,  value: 0.20 }
+        - { at: 135m, value: 0.30 }
+        - { at: 140m, value: 1.00 } # halftime rush
+        - { at: 155m, value: 0.25 }
+
+incidents:
+  - at: 55m
+    zone: zone_gate_north
+    severity: high
+    category: equipment_failure
+    description: Two of six ticket scanners offline at North Gate.
+    service_rate_factor: 0.6
+    effect_duration: 20m
+
+  - at: 141m
+    zone: zone_concourse_main
+    severity: medium
+    category: medical
+    description: Guest reports dizziness near Section 112 concessions.

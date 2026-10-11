@@ -1,0 +1,53 @@
+# Friday dinner service at a 120-cover restaurant, 17:00-22:00.
+# Shows the simulator is venue-type neutral: the same occupancy and queue
+# models describe a dining room and a host-stand waitlist.
+name: restaurant-dinner
+venue:
+  id: ven_demo_bistro
+  name: Harbor Bistro
+  kind: restaurant
+  timezone: Europe/Amsterdam
+duration: 5h
+tick: 15s
+
+zones:
+  - id: zone_dining_room
+    name: Dining Room
+    kind: dining
+    capacity: 96
+    occupancy:
+      - { at: 0m,   value: 0.10 }
+      - { at: 90m,  value: 0.85 }
+      - { at: 150m, value: 1.00 }
+      - { at: 240m, value: 0.60 }
+      - { at: 300m, value: 0.15 }
+
+  - id: zone_bar
+    name: Bar
+    kind: bar
+    capacity: 24
+    occupancy:
+      - { at: 0m,   value: 0.20 }
+      - { at: 120m, value: 0.90 }
+      - { at: 270m, value: 0.70 }
+      - { at: 300m, value: 0.40 }
+
+  - id: zone_host_stand
+    name: Host Stand Waitlist
+    kind: waitlist
+    service_rate_per_min: 0.8
+    arrivals:
+      peak_per_min: 1.1
+      curve:
+        - { at: 0m,   value: 0.20 }
+        - { at: 100m, value: 1.00 }
+        - { at: 180m, value: 0.70 }
+        - { at: 240m, value: 0.20 }
+        - { at: 300m, value: 0.05 }
+
+incidents:
+  - at: 130m
+    zone: zone_dining_room
+    severity: low
+    category: service_delay
+    description: Kitchen reports ticket times above 25 minutes.
