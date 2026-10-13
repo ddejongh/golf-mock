@@ -8,7 +8,7 @@ help: ## List targets
 ## --- Whole stack -----------------------------------------------------------
 
 .PHONY: dev down test lint
-dev: ## Start postgres, redis and the simulator (docker compose)
+dev: ## Start postgres, redis, migrations + seed, ingest and the simulator (docker compose)
 	$(COMPOSE) up --build
 
 down: ## Stop the compose stack
@@ -20,9 +20,23 @@ lint: go-lint py-lint fe-lint ## Run all linters
 
 ## --- backend-go ------------------------------------------------------------
 
-.PHONY: go-test go-lint go-build sim sim-stdout
-go-test: ## Go tests (race detector on)
+SQLC := go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+
+.PHONY: go-test go-lint go-build go-generate migrate seed ingest sim sim-stdout
+go-test: ## Go tests (race detector on; DB tests use embedded Postgres unless VP_TEST_DATABASE_URL is set)
 	cd backend-go && go test -race ./...
+
+go-generate: ## Regenerate sqlc code from migrations + queries (needs cgo)
+	cd backend-go && $(SQLC) generate
+
+migrate: ## Apply migrations to VP_DATABASE_URL
+	cd backend-go && go run ./cmd/vpadmin migrate up
+
+seed: ## Upsert the stadium scenario's venue and zones
+	cd backend-go && go run ./cmd/vpadmin seed -scenario scenarios/stadium-ingress.yaml
+
+ingest: ## Run the ingest consumer locally
+	cd backend-go && go run ./cmd/ingest
 
 go-lint: ## go vet + golangci-lint
 	cd backend-go && go vet ./... && golangci-lint run

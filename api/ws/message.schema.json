@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://venuepulse.dev/schemas/ws/message.json",
+  "title": "WebSocket message (server → client)",
+  "description": "Published by backend-go to Redis pub/sub ws:{venue_id} and relayed by the WS hub. seq increases by exactly 1 per venue; a gap means the client missed messages and must resync from the snapshot endpoint. Go mirror: backend-go/internal/live. Further types (alerts, proposals, shifts) are added as they ship.",
+  "type": "object",
+  "required": ["type", "venue_id", "seq", "ts", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "enum": ["metric.update", "incident.created"] },
+    "venue_id": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "ts": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "metric.update" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/MetricUpdate" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "incident.created" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/IncidentCreated" } } }
+    }
+  ],
+  "$defs": {
+    "MetricUpdate": {
+      "description": "Latest value of each metric for one zone as of ts.",
+      "type": "object",
+      "required": ["zone_id", "ts", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "zone_id": { "type": "string" },
+        "ts": { "type": "string", "format": "date-time" },
+        "metrics": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    },
+    "IncidentCreated": {
+      "type": "object",
+      "required": ["incident"],
+      "additionalProperties": false,
+      "properties": { "incident": { "$ref": "#/$defs/Incident" } }
+    },
+    "Incident": {
+      "type": "object",
+      "required": ["id", "venue_id", "zone_id", "severity", "category", "status", "description", "reported_at", "created_at", "updated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "venue_id": { "type": "string" },
+        "zone_id": { "type": "string" },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "category": { "type": "string" },
+        "status": { "enum": ["open", "acknowledged", "resolved"] },
+        "description": { "type": "string" },
+        "reported_at": { "type": "string", "format": "date-time" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

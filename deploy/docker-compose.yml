@@ -1,5 +1,5 @@
 # Local development stack. Run from the repo root: `make dev`.
-# Gateway, ingest, agent and frontend services are added as they are built (M1+).
+# Gateway, agent and frontend services are added as they are built.
 name: venuepulse
 
 services:
@@ -25,6 +25,40 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot: apply migrations, then register the scenario's venue and zones.
+  migrate:
+    build: &vpadmin-build
+      context: ../backend-go
+      dockerfile: ../deploy/docker/backend-go.Dockerfile
+      args: { CMD: vpadmin }
+    environment:
+      VP_DATABASE_URL: &db-url postgres://venuepulse:venuepulse@postgres:5432/venuepulse?sslmode=disable
+    command: ["migrate", "up"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  seed:
+    build: *vpadmin-build
+    environment:
+      VP_DATABASE_URL: *db-url
+    command: ["seed", "-scenario", "/app/scenarios/${VP_SIM_SCENARIO_NAME:-stadium-ingress}.yaml"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  ingest:
+    build:
+      context: ../backend-go
+      dockerfile: ../deploy/docker/backend-go.Dockerfile
+      args: { CMD: ingest }
+    environment:
+      VP_DATABASE_URL: *db-url
+      VP_REDIS_URL: redis://redis:6379/0
+      VP_LOG_LEVEL: ${VP_LOG_LEVEL:-info}
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
 
   simulator:
     build:

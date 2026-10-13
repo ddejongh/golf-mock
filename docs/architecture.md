@@ -207,7 +207,9 @@ sequenceDiagram
 
 - Delivery is at-least-once. Inserts are idempotent through a `(source_id, event_id)` unique key.
 - Ingest batches writes, flushing every 250 ms or every 500 rows. WS messages for a zone are coalesced to at most 4 Hz.
-- Entries that fail validation repeatedly go to the dead-letter stream `events:dlq` and are logged with the full envelope.
+- Entries that fail validation (malformed, wrong venue, unknown zone) go straight to the dead-letter stream `events:dlq` with a reason. Entries whose batch fails to commit stay pending, are reclaimed after an idle timeout, and are dead-lettered after `MaxDeliveries` attempts.
+- Ingest only consumes streams of venues that exist in Postgres (`vpadmin seed`). Consumer groups start at ID `0`, so events published before a venue is seeded are not lost.
+- Live publishing (latest-value cache and WS messages) happens after commit and is best-effort. Postgres is the source of truth, and clients recover from a `seq` gap by taking a snapshot.
 
 ### 5.2 Copilot chat
 
@@ -399,9 +401,10 @@ Guardrails:
 │   └── ws/                       # WebSocket envelope + message JSON Schemas
 ├── backend-go/
 │   ├── cmd/
-│   │   ├── gateway/              # REST + WS + chat proxy (+ ingest in dev)
-│   │   ├── ingest/               # Standalone ingest consumer
-│   │   └── simulator/            # Scenario-driven event generator
+│   │   ├── gateway/              # REST + WS + chat proxy
+│   │   ├── ingest/               # Ingest consumer
+│   │   ├── simulator/            # Scenario-driven event generator
+│   │   └── vpadmin/              # migrate up|down|status, seed -scenario
 │   ├── internal/
 │   │   ├── config/               # Typed env config
 │   │   ├── logging/              # slog setup, context helpers
@@ -410,13 +413,15 @@ Guardrails:
 │   │   ├── auth/                 # JWT, RBAC, service token, WS tickets
 │   │   ├── domain/               # Entities, domain errors, proposal state machine
 │   │   ├── store/                # pgx + sqlc generated queries, repositories
-│   │   ├── events/               # Envelope types, Redis stream/pubsub clients
-│   │   ├── ingest/               # Consumer, batching, adapters interface
+│   │   ├── events/               # Ingest envelope types + stream publishers
+│   │   ├── live/                 # WS message types, pub/sub publisher, latest-value cache
+│   │   ├── ingest/               # Stream consumer: validate, persist, DLQ, reclaim
+│   │   ├── testutil/pgtest/      # Isolated migrated Postgres per test
 │   │   ├── alerts/               # Rule evaluation, explanation jobs
 │   │   ├── proposals/            # Service + action handlers registry
 │   │   ├── agentclient/          # SSE client to agent-python
 │   │   └── simulator/            # Scenario engine
-│   ├── migrations/               # goose SQL migrations
+│   ├── migrations/               # goose SQL migrations (embedded into binaries)
 │   ├── scenarios/                # Simulator scenario YAML
 │   ├── sqlc.yaml
 │   └── go.mod
@@ -471,7 +476,7 @@ None of these exist yet. They are the intended commands.
 ## 11. Testing Strategy
 
 - **Go unit tests:** proposal state machine, alert rule evaluation, envelope validation, problem+json mapping.
-- **Go integration tests:** `testcontainers-go` for Postgres and Redis. Covers the ingest path from end to end, idempotency, and WS fan-out across two hub instances.
+- **Go integration tests:** real Postgres through `internal/testutil/pgtest`, which uses `VP_TEST_DATABASE_URL` if set and otherwise starts an embedded Postgres 17, so no docker is needed. Redis is `miniredis`. Covers the ingest path end to end (simulator → stream → consumer → Postgres), idempotent replay, retries and dead-lettering, and, later, WS fan-out across two hub instances.
 - **Agent tests:**
   - A fake Anthropic client returns scripted streams, including `tool_use` blocks.
   - The gateway client is mocked with recorded fixtures.
